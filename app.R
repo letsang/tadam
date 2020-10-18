@@ -8,6 +8,9 @@
 #
 
 library(shiny)
+library(shinyWidgets)
+library(shinycssloaders)
+library(dplyr)
 library(rvest)
 library(stringr)
 library(xml2)
@@ -18,42 +21,44 @@ library(googledrive)
 gs4_auth(cache = ".secrets", email = TRUE)
 ss <- "https://docs.google.com/spreadsheets/d/1PWglsYDplIzOKxXadytzz1COJmfJvqGDcOEsA17dIqE/edit?usp=sharing"
 selection <- read_sheet(ss, col_names = FALSE)
+result <- lapply(selection$...1, read_html)
 
-ui <- navbarPage("TADAM",
-                 tabPanel("Test",
-                          fluidRow(
-                              lapply(seq_along(selection$...1), function(i){
-                                  column(
-                                      3,
-                                      uiOutput(paste0("image", i)),
-                                      textOutput(paste0("price", i)),
-                                      textOutput(paste0("size", i))
-                                  )
-                              })
-                              )
-                          )
-                 )
+ui <- fluidPage(
+    setBackgroundColor(color = "#f7929a"),
+    tags$style(HTML('body {font-family:"Futura",sans-serif; font-weight: "bold"}')),
+    fluidRow(
+        lapply(seq_along(selection$...1), function(i){
+            column(3,
+                   withSpinner(uiOutput(paste0("image", i)),
+                               type = getOption("spinner.type", default = 8),
+                               color = getOption("spinner.color", default = "#8A2BE2")),
+                   textOutput(paste0("price", i)),
+                   textOutput(paste0("size", i))
+            )
+        })
+    )
+)
 
 server <- function(input, output) {
     
-# Generate Output loop using lapply : https://shiny.rstudio.com/reference/shiny/0.11/imageOutput.html
-
+    # Generate Output loop using lapply : https://shiny.rstudio.com/reference/shiny/0.11/imageOutput.html
+    
     lapply(seq_along(selection$...1), function(i){
         output[[paste0("image", i)]] <- renderUI({
-            res1 <- selection$...1[i] %>% read_html() %>% html_nodes("figure.item-description:nth-child(1) > a:nth-child(1)") %>% str_extract_all("http[^\"><]+") %>% unlist()
+            res1 <- result[[i]] %>% html_nodes("figure.item-description:nth-child(1) > a:nth-child(1)") %>% str_extract_all("http[^\"><]+") %>% unlist()
             tags$a(href = selection$...1[i], target="_blank", tags$img(src = res1[1], height = "532.9px", width = "352.8px"))
         })
     })
-
+    
     lapply(seq_along(selection$...1), function(i){
         output[[paste0("price", i)]] <- renderText({
-            res2 <- selection$...1[i] %>% read_html() %>% html_nodes(".c-text--heading") %>% html_text()
+            res2 <- result[[i]] %>% html_nodes(".c-text--heading") %>% html_text()
         })
     })
     
     lapply(seq_along(selection$...1), function(i){
         output[[paste0("size", i)]] <- renderText({
-            res3 <- selection$...1[i] %>% read_html() %>% html_nodes(".details-list--details > div:nth-child(2) > div:nth-child(2)") %>% html_text()
+            res3 <- result[[i]] %>% html_nodes(".details-list--details > div:nth-child(2) > div:nth-child(2)") %>% html_text()
             paste0("Taille ", res3)
         })
     })
